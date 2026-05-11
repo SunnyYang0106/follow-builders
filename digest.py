@@ -47,7 +47,8 @@ def get_digest():
     for block in data.get("content", []):
         if block.get("type") == "text":
             text += block.get("text", "")
-    return text
+      print("API响应:", data)
+      return text
 
 def send_email(content):
     today = datetime.now().strftime('%Y-%m-%d')
