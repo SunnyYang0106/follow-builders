@@ -1,0 +1,60 @@
+import os
+import smtplib
+import requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
+
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASS = os.environ.get("SMTP_PASS")
+TO_EMAIL = os.environ.get("TO_EMAIL")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+BUILDERS = [
+    "Sam Altman", "Greg Brockman", "Andrej Karpathy",
+    "Yann LeCun", "Demis Hassabis", "Dario Amodei",
+    "Ilya Sutskever", "George Hotz", "Emad Mostaque"
+]
+def get_digest():
+    today = datetime.now().strftime('%Y-%m-%d')
+    names = ", ".join(BUILDERS)
+    prompt = "Today is " + today + ". Summarize latest 24h news for these AI leaders in Chinese then English, one paragraph each, max 100 words each, skip if no news: " + names
+
+    response = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        },
+        json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 2000,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+    )
+    data = response.json()
+    print("API:", data)
+    text = ""
+    for block in data.get("content", []):
+        if block.get("type") == "text":
+            text += block.get("text", "")
+    return text
+def send_email(content):
+    today = datetime.now().strftime('%Y-%m-%d')
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "AI Builders Daily " + today
+    msg["From"] = SMTP_USER
+    msg["To"] = TO_EMAIL
+    body = "<html><body><h2>AI Builders Daily " + today + "</h2><hr><pre>" + content + "</pre><hr></body></html>"
+    msg.attach(MIMEText(body, "html"))
+    with smtplib.SMTP_SSL("smtp.qq.com", 465) as server:
+        server.login(SMTP_USER, SMTP_PASS)
+        server.sendmail(SMTP_USER, TO_EMAIL, msg.as_string())
+    print("Email sent!")
+
+if __name__ == "__main__":
+    print("Fetching news...")
+    content = get_digest()
+    print(content)
+    send_email(content)
